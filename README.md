@@ -20,13 +20,13 @@ mkdir mouse_ribosome_profiling
 cp -r scripts mouse_ribosome_profiling/
 ```
 
-Then create a folder called raw_fastq to put the fastq files in.
+Then create a folder called raw_fastq and project folder to put the fastq files in.
 
 ```
-mkdir mouse_ribosome_profiling/raw_fastq
+mkdir -p mouse_ribosome_profiling/raw_fastq/my_project
 ``` 
 
-Create a project configuration file, Gtpbp1_project.yaml and Gtpbp1_project_UMI.yaml are examples of these files. Properties include project name, sample names (make sure these sample names match the fastq file names i.e. mouse_ribosome_profiling/raw_fastq/sample1.fastq.gz), as well as read length minimum, maximium and reads per codon threshold. These can be altered depending on the periodicity for each read length which can be seen after running the riboWaltz portion of the pipeline, which may be experiment dependent. If you want to consider this, comment out the lines 11-14 for RFP_pipeline.snakemake or RFP_pipeline_UMI.snakemake, then run the pipeline up to the riboWaltz step and adjust the paramters in the project configuration file accordingly. After that you can uncomment lines 11-14 run the pipeline again (it will save the files from the steps you've already run).  
+Create a project configuration file, my_project.yaml and my_project_UMI.yaml are examples of these files. Properties include project name, sample names (make sure these sample names match the fastq file names i.e. mouse_ribosome_profiling/raw_fastq/sample_A1.fastq.gz), as well as read length minimum, maximium and reads per codon threshold. These can be altered depending on the periodicity for each read length which can be seen after running the riboWaltz portion of the pipeline, which may be experiment dependent. If you want to consider this, comment out the lines 11-14 for RFP_pipeline.snakemake or RFP_pipeline_UMI.snakemake, then run the pipeline up to the riboWaltz step and adjust the paramters in the project configuration file accordingly. After that you can uncomment lines 11-14 run the pipeline again (it will save the files from the steps you've already run).  
 
 Ensure that the configfile on line 1 of either of the snakemake files corresponds to your project configuration file.  
 

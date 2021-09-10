@@ -1,16 +1,16 @@
-configfile: "/projects/chuang-lab/USERS/sadamson/ribosome_profiling_snakemake/Gtpbp1_project.yaml" 
+configfile: "/path/to/my_project.yaml" 
 
 def hours_to_minutes(hour):
     return hour*60
 
 rule all:
     input:
-        #expand("riboWaltz/{project_name}/{sample}_periodicity_lengths_all.tsv", sample = config["SAMPLES"], project_name = config["project_name"]),
+        expand("riboWaltz/{project_name}/{sample}_periodicity_lengths_all.tsv", sample = config["SAMPLES"], project_name = config["project_name"]),
         #run pipeline up to riboWatlz step; access periodicity files and edit configfile to select read length to maintain
         #then run the steps below
         #expand("read_counts/{project_name}/RFP_gene_counts_formatted.txt", sample = config["SAMPLES"], project_name = config["project_name"]),
         #expand("obs_exp/{project_name}/{sample}_obs_exp_sample.tsv", sample = config["SAMPLES"], project_name = config["project_name"]),
-        expand("pauses/{project_name}/{sample}_genome_pauses_collapsed.tsv.gz", sample = config["SAMPLES"], project_name = config["project_name"]),
+        #expand("pauses/{project_name}/{sample}_genome_pauses_collapsed.tsv.gz", sample = config["SAMPLES"], project_name = config["project_name"]),
         #expand("wiggles/{project_name}/{sample}.bw", sample = config["SAMPLES"], project_name = config["project_name"])
 
 rule setup_all_refs:
