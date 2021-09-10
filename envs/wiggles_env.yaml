@@ -1,0 +1,8 @@
+channels:
+  - bioconda
+  - conda-forge
+dependencies:
+  - bedtools =2
+  - samtools =1
+  - deeptools =3
+

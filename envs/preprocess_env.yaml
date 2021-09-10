@@ -1,0 +1,7 @@
+channels:
+  - bioconda
+  - conda-forge
+dependencies:
+  - bowtie2 =2.4
+  - fastx_toolkit =0.0.14
+

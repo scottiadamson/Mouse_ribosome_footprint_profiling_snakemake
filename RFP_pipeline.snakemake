@@ -1,0 +1,396 @@
+configfile: "/projects/chuang-lab/USERS/sadamson/ribosome_profiling_snakemake/Gtpbp1_project.yaml" 
+
+def hours_to_minutes(hour):
+    return hour*60
+
+rule all:
+    input:
+        #expand("riboWaltz/{project_name}/{sample}_periodicity_lengths_all.tsv", sample = config["SAMPLES"], project_name = config["project_name"]),
+        #run pipeline up to riboWatlz step; access periodicity files and edit configfile to select read length to maintain
+        #then run the steps below
+        #expand("read_counts/{project_name}/RFP_gene_counts_formatted.txt", sample = config["SAMPLES"], project_name = config["project_name"]),
+        #expand("obs_exp/{project_name}/{sample}_obs_exp_sample.tsv", sample = config["SAMPLES"], project_name = config["project_name"]),
+        expand("pauses/{project_name}/{sample}_genome_pauses_collapsed.tsv.gz", sample = config["SAMPLES"], project_name = config["project_name"]),
+        #expand("wiggles/{project_name}/{sample}.bw", sample = config["SAMPLES"], project_name = config["project_name"])
+
+rule setup_all_refs:
+    output:
+        "references/rRNA_snoRNA_tRNA.fa",
+        "references/mm10.fa",
+        "references/gencode.vM25.annotation.gtf",
+        "references/gencode.vM25.pc_transcripts.fa",
+        "references/gencode.vM25.transcripts.fa"
+    run:
+        shell("wget https://ftp.ncbi.nlm.nih.gov/genomes/refseq/vertebrate_mammalian/Mus_musculus/reference/GCF_000001635.27_GRCm39/GCF_000001635.27_GRCm39_rna.fna.gz")
+        shell("wget http://gtrnadb.ucsc.edu/genomes/eukaryota/Mmusc10/mm10-mature-tRNAs.fa")
+        shell("python scripts/combine_ncRNA_tRNAs.py")
+        shell("rm GCF_000001635.27_GRCm39_rna.fna.gz") 
+        shell("rm mm10-mature-tRNAs.fa")
+        shell("wget -O references/mm10.fa.gz http://hgdownload.cse.ucsc.edu/goldenpath/mm10/bigZips/mm10.fa.gz")
+        shell("gunzip references/mm10.fa.gz")
+        shell("wget -O references/gencode.vM25.annotation.gtf.gz http://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_mouse/release_M25/gencode.vM25.annotation.gtf.gz")
+        shell("gunzip references/gencode.vM25.annotation.gtf.gz")
+        shell("wget -O references/gencode.vM25.pc_transcripts.fa.gz http://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_mouse/release_M25/gencode.vM25.pc_transcripts.fa.gz")
+        shell("gunzip references/gencode.vM25.pc_transcripts.fa.gz")
+        shell("wget -O references/gencode.vM25.transcripts.fa.gz http://ftp.ebi.ac.uk/pub/databases/gencode/Gencode_mouse/release_M25/gencode.vM25.transcripts.fa.gz")
+        shell("gunzip references/gencode.vM25.transcripts.fa.gz")
+
+rule build_genome_index_prep:
+    input:
+        "references/gencode.vM25.annotation.gtf"
+    output:
+        "references/splice_sites.txt",
+        "references/exons.txt"
+    run:
+        shell("python scripts/hisat2_extract_splice_sites.py {input} > references/splice_sites.txt")
+        shell("python scripts/hisat2_extract_exons.py {input} > references/exons.txt")
+
+rule build_genome_index:
+    input:
+        fasta="references/mm10.fa",
+        splice_site_file="references/splice_sites.txt",
+        exon_file="references/exons.txt"
+    output:
+        "references/gencode.vM25_genome.1.ht2"
+    conda:
+        "envs/hisat_env.yaml"
+    threads: 4
+    resources:
+        time=hours_to_minutes(8),
+        mem=200000
+    shell:
+        "hisat2-build -p {threads} --ss {input.splice_site_file} --exon {input.exon_file} {input.fasta} references/gencode.vM25_genome" 
+ 
+rule build_transcriptome_index:
+    input:
+        "references/gencode.vM25.pc_transcripts.fa"
+    output:
+        "references/gencode.vM25_transcriptome.1.ht2"
+    conda:
+        "envs/hisat_env.yaml"
+    threads: 4
+    resources:
+        time=hours_to_minutes(2),
+        mem=15000
+    shell:
+        "hisat2-build -p {threads} {input} references/gencode.vM25_transcriptome" 
+
+rule build_rRNA_index:
+    input:
+        "references/rRNA_snoRNA_tRNA.fa"
+    output:
+        "references/rRNA_snoRNA_tRNA.1.bt2"
+    conda:
+        "envs/preprocess_env.yaml"
+    threads: 1
+    shell:
+        "bowtie2-build {input} references/rRNA_snoRNA_tRNA"
+
+rule clip_reads:
+    input:
+        "raw_fastq/{project_name}/{sample}.fastq.gz"
+    output:
+        temp("processed_fastq/{project_name}/{sample}_clipped.fastq")
+    conda:
+        "envs/preprocess_env.yaml"
+    resources:
+        time=hours_to_minutes(3)
+    shell:
+        "zcat {input} | fastx_clipper -Q33 -a CTGTAGGCACCATCAAT -l 11 -c -n -v -i - -o {output}"
+
+rule trim_reads:
+    input:
+        "processed_fastq/{project_name}/{sample}_clipped.fastq"
+    output:
+        temp("processed_fastq/{project_name}/{sample}_trimmed.fastq")
+    conda:
+        "envs/preprocess_env.yaml"
+    shell:
+        "fastx_trimmer -Q33 -f 2 -l 125 -i {input} -o {output}"
+
+rule remove_contaminant_RNA:
+    input:
+        fastq="processed_fastq/{project_name}/{sample}_trimmed.fastq",
+        bowtie_reference="references/rRNA_snoRNA_tRNA.1.bt2"
+    output:
+        temp("processed_fastq/{project_name}/{sample}_processed.fastq")
+    conda:
+         "envs/preprocess_env.yaml"
+    threads: 1
+    shell:
+        "bowtie2 --norc -p {threads} -x references/rRNA_snoRNA_tRNA -U {input.fastq} -L 13 --un {output} > /dev/null"
+
+rule gzip_fastq:
+    input:
+        "processed_fastq/{project_name}/{sample}_processed.fastq"
+    output:
+        "processed_fastq/{project_name}/{sample}_processed.fastq.gz"
+    shell:
+        "gzip {input}"
+
+rule map_RFP_genome:
+    input:
+        fastq="processed_fastq/{project_name}/{sample}_processed.fastq.gz",
+        hisat_genome_index="references/gencode.vM25_genome.1.ht2"
+    output:
+        temp("bam/{project_name}/{sample}_genome.bam")
+    conda:
+        "envs/hisat_env.yaml"
+    threads: 4
+    resources:
+        time=hours_to_minutes(5),
+        mem=15000
+    shell:
+        "hisat2 -p {threads} --rna-strandness F -x references/gencode.vM25_genome -U {input.fastq} | samtools view -bSh - > {output}"
+
+rule sort_genome_bam:
+    input:
+        "bam/{project_name}/{sample}_genome.bam"
+    output:
+        "bam/{project_name}/{sample}_genome_sorted.bam"
+    conda:
+        "envs/hisat_env.yaml"
+    shell:
+        "samtools sort -o {output} {input}"
+
+rule index_genome_bam:
+    input:
+        "bam/{project_name}/{sample}_genome_sorted.bam"
+    output:
+        "bam/{project_name}/{sample}_genome_sorted.bam.bai"
+    conda:
+        "envs/hisat_env.yaml"
+    shell:
+        "samtools index {input}"
+
+rule map_RFP_transcriptome:
+    input:
+        fastq="processed_fastq/{project_name}/{sample}_processed.fastq.gz",
+        hisat_transcriptome_index="references/gencode.vM25_transcriptome.1.ht2"
+    output:
+        temp("bam/{project_name}/{sample}_transcriptome.bam")
+    conda:
+        "envs/hisat_env.yaml"
+    threads: 4
+    resources:
+        time=hours_to_minutes(4),
+        mem=15000
+    shell:
+        "hisat2 -p {threads} --rna-strandness F -x references/gencode.vM25_transcriptome -U {input.fastq} | samtools view -bSh - > {output}"
+
+rule sort_transcriptome_bam:
+    input:
+        "bam/{project_name}/{sample}_transcriptome.bam"
+    output:
+        "bam/{project_name}/{sample}_transcriptome_sorted.bam"
+    conda:
+        "envs/hisat_env.yaml"
+    shell:
+        "samtools sort -o {output} {input}"
+
+rule index_transcriptome_bam:
+    input:
+        "bam/{project_name}/{sample}_transcriptome_sorted.bam"
+    output:
+        "bam/{project_name}/{sample}_transcriptome_sorted.bam.bai"
+    conda:
+        "envs/hisat_env.yaml"
+    shell:
+        "samtools index {input}"
+
+rule transcriptome_bam_header:
+    input:
+        "bam/{project_name}/{sample}_transcriptome_sorted.bam"
+    output:
+        temp("bam/{project_name}/unique_temp/{sample}_header.sam")
+    conda:
+        "envs/hisat_env.yaml"
+    shell:
+        "samtools view -H {input} > {output}"
+
+rule get_unique_reads:
+    input:
+        bam="bam/{project_name}/{sample}_transcriptome_sorted.bam",
+        header="bam/{project_name}/unique_temp/{sample}_header.sam"
+    output:
+        temp("bam/{project_name}/unique_temp/{sample}/{sample}.bam")
+    conda:
+        "envs/hisat_env.yaml"
+    shell:
+        'samtools view {input.bam} | grep "NH:i:1$" |cat {input.header} - | samtools view -hb - > {output}'
+
+rule combine_all_samples:
+    input:
+        bams=expand("bam/{project_name}/unique_temp/{sample}/{sample}.bam", sample=config['SAMPLES'], project_name=config['project_name'])
+    output: 
+        temp("bam/{project_name}/temp/merged/merged.bam")
+    conda:
+        "envs/hisat_env.yaml"
+    resources:
+        time=hours_to_minutes(5),
+        mem=25000
+    shell:
+        temp("samtools merge {output} {input.bams}") 
+
+rule copy_transcriptome_bams_temp:
+    input:
+        "bam/{project_name}/{sample}_transcriptome_sorted.bam"
+    output:
+        temp("bam/{project_name}/temp/{sample}/{sample}.bam")
+    shell:
+        "cp {input} {output}"
+
+rule verify_package_install:
+    #adding this so jobs don't try to install a bunch of things in parallel which can cause issues
+    output:
+        "scripts/install_verification.txt"
+    conda:
+        "envs/r_env.yaml"
+    shell:
+        "Rscript scripts/verify_installations.R"
+
+rule identify_offset:
+    input:
+        installation="scripts/install_verification.txt",
+        gtf="references/gencode.vM25.annotation.gtf",
+        fasta="references/mm10.fa",
+        merged_bam="bam/{project_name}/temp/merged/merged.bam",
+        #merged_bam="bam/{project_name}/unique_temp/{sample}/{sample}.bam"
+    output:
+        "riboWaltz/{project_name}/offset.tsv"
+        #"riboWaltz/{project_name}/{sample}_offset.tsv"
+    conda:
+        "envs/r_env.yaml"
+    shell:
+        "Rscript scripts/riboWaltz_offset_all_samples.R {input.gtf} {input.fasta} {input.merged_bam}"
+
+rule get_psites:
+    input:
+        installation="scripts/install_verification.txt",
+        gtf="references/gencode.vM25.annotation.gtf",
+        fasta="references/mm10.fa",
+        offset="riboWaltz/{project_name}/offset.tsv",
+        #offset="riboWaltz/{project_name}/{sample}_offset.tsv",
+        bam="bam/{project_name}/temp/{sample}/{sample}.bam"
+    output:
+        "riboWaltz/{project_name}/{sample}_periodicity_lengths_deduped.tsv",
+        "riboWaltz/{project_name}/{sample}_periodicity_lengths_all.tsv",
+        "riboWaltz/{project_name}/{sample}_psites_sample.tsv.gz"
+    conda:
+        "envs/r_env.yaml"
+    resources:
+        mem=10000
+    shell:
+        "Rscript scripts/riboWaltz_single_sample.R {input.gtf} {input.fasta} {input.offset} {input.bam}"
+
+rule pauses:
+    input:
+        riboWaltz_files=expand("riboWaltz/{project_name}/{sample}_psites_sample.tsv.gz", sample=config['SAMPLES'], project_name=config['project_name']),
+        pc_fasta="references/gencode.vM25.pc_transcripts.fa"
+    output:
+        "pauses/{project_name}/transcripts_pass_threshold.tsv",
+        "pauses/{project_name}/pauses.tsv"
+    resources:
+        time=hours_to_minutes(5),
+        mem=25000
+    params:
+        samples=expand("{sample}", sample=config["SAMPLES"]),
+        project_name="{project_name}",
+        read_length_min = expand("{read_length_min}", read_length_min=config['read_length_min']),
+        read_length_max = expand("{read_length_max}", read_length_max=config['read_length_max']),
+        reads_per_codon = expand("{reads_per_codon}", reads_per_codon=config['reads_per_codon'])
+    shell:
+        "python scripts/ID_pauses.py {params.reads_per_codon} {params.read_length_min} {params.read_length_max} {input.pc_fasta} {params.project_name} {params.samples}"
+
+rule pause_to_genome:
+    input:
+        "pauses/{project_name}/pauses.tsv",
+        installation="scripts/install_verification.txt"
+    output:
+        "pauses/{project_name}/{sample}_genome_pauses_collapsed.tsv.gz"
+    conda:
+        "envs/r_env.yaml"
+    resources:
+        time=hours_to_minutes(10),
+        mem=25000
+    params:
+        sample="{sample}",
+        project_name="{project_name}"
+    shell:
+        "Rscript scripts/pause_to_genome.R {params.project_name} {params.sample}"
+
+rule obs_exp:
+    input:
+        riboWaltz_files=expand("riboWaltz/{project_name}/{sample}_psites_sample.tsv.gz", sample=config['SAMPLES'], project_name=config['project_name']),
+        pc_fasta="references/gencode.vM25.pc_transcripts.fa"
+    output:
+        expand("obs_exp/{project_name}/{sample}_obs_exp_sample.tsv", sample=config['SAMPLES'], project_name=config['project_name'])
+    params:
+        samples=expand("{sample}", sample=config['SAMPLES']),
+        project_name=expand("{project_name}", project_name=config['project_name']),
+        read_length_min = expand("{read_length_min}", read_length_min=config['read_length_min']),
+        read_length_max = expand("{read_length_max}", read_length_max=config['read_length_max'])
+    resources:
+        time=hours_to_minutes(5),
+        mem=25000
+    shell:
+        "python scripts/obs_exp.py {params.read_length_min} {params.read_length_max} {input.pc_fasta} {params.project_name} {params.samples}"
+
+rule CDS_counts:
+    input:
+        genome_bams=expand("bam/{project_name}/{sample}_genome_sorted.bam", sample=config['SAMPLES'], project_name=config['project_name']),
+        gtf="references/gencode.vM25.annotation.gtf"
+    output:
+        temp("read_counts/{project_name}/RFP_gene_counts.txt")
+    threads: 4
+    conda:
+        "envs/feature_counts_env.yaml"
+    params:
+        read_length_min = expand("{read_length_min}", read_length_min=config['read_length_min']),
+        read_length_max = expand("{read_length_max}", read_length_max=config['read_length_max'])
+    shell:
+        "featureCounts -a {input.gtf} -o {output} -s 1 -T {threads} -t CDS -d {params.read_length_min} -D {params.read_length_max} {input.genome_bams}"
+
+rule format_CDS_counts:
+    input:
+        "read_counts/{project_name}/RFP_gene_counts.txt"
+    output:
+        "read_counts/{project_name}/RFP_gene_counts_formatted.txt"
+    shell:
+        "python scripts/format_output.py {input}"
+
+rule make_wiggle_script:
+    input:
+        "riboWaltz/{project_name}/offset.tsv"
+    output:
+        "scripts/make_wiggles_{project_name}.sh"
+    params:
+        project_name=expand("{project_name}", project_name=config['project_name']),
+        read_length_min = expand("{read_length_min}", read_length_min=config['read_length_min']),
+        read_length_max = expand("{read_length_max}", read_length_max=config['read_length_max'])
+    shell:
+        "python scripts/make_wiggle_script.py {params.project_name} {input} {params.read_length_min} {params.read_length_max}"
+
+rule download_chrom_sizes:
+    output:
+        "references/mm10.chrom.sizes"
+    run:
+        shell("wget -O references/mm10.chrom.sizes http://hgdownload.cse.ucsc.edu/goldenpath/mm10/bigZips/mm10.chrom.sizes")
+
+rule make_wiggle_tracks:
+    input:
+        script_name="scripts/make_wiggles_{project_name}.sh",
+        genome_bam="bam/{project_name}/{sample}_genome_sorted.bam",
+        chrom_sizes="references/mm10.chrom.sizes"
+    output:
+        "wiggles/{project_name}/{sample}.bw"
+    conda:
+        "envs/wiggles_env.yaml"
+    resources:
+        time=hours_to_minutes(5),
+        mem=1000
+    params:
+        sample="{sample}"
+    shell:
+        "bash {input.script_name} {params.sample}"
+

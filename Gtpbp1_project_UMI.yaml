@@ -1,0 +1,5 @@
+project_name: "Gtpbp1_project_UMI"
+SAMPLES: ["WT_1", "WT_2", "WT_3", "Gtpbp1_1", "Gtpbp1_2", "Gtpbp1_3"]
+read_length_min: 29
+read_length_max: 32
+reads_per_codon: 0.5
