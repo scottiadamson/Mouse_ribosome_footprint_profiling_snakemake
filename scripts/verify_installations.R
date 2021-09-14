@@ -6,7 +6,7 @@ if (!require("EnsDb.Mmusculus.v79", character.only = TRUE)){
 }
 
 if (!require("riboWaltz",character.only = TRUE)){
-    install_github("LabTranslationalArchitectomics/riboWaltz", dependencies = TRUE)
+    devtools::install_github("LabTranslationalArchitectomics/riboWaltz", dependencies = TRUE)
 }
 
 all_packages <- c(reg_install_packages, 'riboWaltz', "EnsDb.Mmusculus.v79")
