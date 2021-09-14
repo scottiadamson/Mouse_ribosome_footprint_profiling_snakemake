@@ -1,18 +1,18 @@
 configfile: "/path/to/my_project.yaml" 
 
 def scheduler_time_hours(hour):
-	scheduler = expand("{cluster_scheduler}", cluster_scheduler=config['cluster_scheduler'])
-	if scheduler == 'pbs':
-		return hour*60*60
-	elif scheduler == 'slurm':
-		return hour*60
+    scheduler = expand("{cluster_scheduler}", cluster_scheduler=config['cluster_scheduler'])[0]
+    if scheduler == 'pbs':
+        return hour*60*60
+    elif scheduler == 'slurm':
+        return hour*60
 
 def scheduler_memory(memory_mb):
-	scheduler = expand("{cluster_scheduler}", cluster_scheduler=config['cluster_scheduler'])
-	if scheduler == 'pbs':
-		return memory_mb*1000000
-	elif scheduler == 'slurm':
-		return memory_mb
+    scheduler = expand("{cluster_scheduler}", cluster_scheduler=config['cluster_scheduler'])[0]
+    if scheduler == 'pbs':
+        return memory_mb*1000000
+    elif scheduler == 'slurm':
+        return memory_mb
 
 rule all:
     input:
