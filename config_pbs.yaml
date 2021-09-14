@@ -1,0 +1,11 @@
+cluster:
+    mkdir -p logs/{rule} &&
+    qsub
+        -q hotel 
+        -l nodes=1:ppn={threads} 
+        -l mem={resources.mem} 
+        -l walltime={resources.time} 
+        -N RFP_snakemake_{rule} 
+        -o logs/{rule}/RFP_snakemake_{rule}.%j.out 
+        -e logs/{rule}/RFP_snakemake_{rule}.%j.err
+default-resources: [mem=5000000, time=3600]

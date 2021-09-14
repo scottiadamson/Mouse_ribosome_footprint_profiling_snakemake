@@ -1,7 +1,18 @@
 configfile: "/path/to/my_project.yaml" 
 
-def hours_to_minutes(hour):
-    return hour*60
+def scheduler_time_hours(hour):
+	scheduler = expand("{cluster_scheduler}", cluster_scheduler=config['cluster_scheduler'])
+	if scheduler == 'pbs':
+		return hour*60*60
+	elif scheduler == 'slurm':
+		return hour*60
+
+def scheduler_memory(memory_mb):
+	scheduler = expand("{cluster_scheduler}", cluster_scheduler=config['cluster_scheduler'])
+	if scheduler == 'pbs':
+		return memory_mb*1000000
+	elif scheduler == 'slurm':
+		return memory_mb
 
 rule all:
     input:
@@ -56,8 +67,8 @@ rule build_genome_index:
         "envs/hisat_env.yaml"
     threads: 4
     resources:
-        time=hours_to_minutes(8),
-        mem=200000
+        time=scheduler_time_hours(8),
+        mem=scheduler_memory(200000)
     shell:
         "hisat2-build -p {threads} --ss {input.splice_site_file} --exon {input.exon_file} {input.fasta} references/gencode.vM25_genome" 
  
@@ -70,8 +81,8 @@ rule build_transcriptome_index:
         "envs/hisat_env.yaml"
     threads: 4
     resources:
-        time=hours_to_minutes(2),
-        mem=15000
+        time=scheduler_time_hours(2),
+        mem=scheduler_memory(15000)
     shell:
         "hisat2-build -p {threads} {input} references/gencode.vM25_transcriptome" 
 
@@ -94,7 +105,7 @@ rule clip_reads:
     conda:
         "envs/preprocess_env.yaml"
     resources:
-        time=hours_to_minutes(3)
+        time=scheduler_time_hours(3)
     shell:
         "zcat {input} | fastx_clipper -Q33 -a CTGTAGGCACCATCAAT -l 11 -c -n -v -i - -o {output}"
 
@@ -138,8 +149,8 @@ rule map_RFP_genome:
         "envs/hisat_env.yaml"
     threads: 4
     resources:
-        time=hours_to_minutes(5),
-        mem=15000
+        time=scheduler_time_hours(5),
+        mem=scheduler_memory(15000)
     shell:
         "hisat2 -p {threads} --rna-strandness F -x references/gencode.vM25_genome -U {input.fastq} | samtools view -bSh - > {output}"
 
@@ -173,8 +184,8 @@ rule map_RFP_transcriptome:
         "envs/hisat_env.yaml"
     threads: 4
     resources:
-        time=hours_to_minutes(4),
-        mem=15000
+        time=scheduler_time_hours(4),
+        mem=scheduler_memory(15000)
     shell:
         "hisat2 -p {threads} --rna-strandness F -x references/gencode.vM25_transcriptome -U {input.fastq} | samtools view -bSh - > {output}"
 
@@ -227,8 +238,8 @@ rule combine_all_samples:
     conda:
         "envs/hisat_env.yaml"
     resources:
-        time=hours_to_minutes(5),
-        mem=25000
+        time=scheduler_time_hours(5),
+        mem=scheduler_memory(25000)
     shell:
         temp("samtools merge {output} {input.bams}") 
 
@@ -279,7 +290,7 @@ rule get_psites:
     conda:
         "envs/r_env.yaml"
     resources:
-        mem=10000
+        mem=scheduler_memory(10000)
     shell:
         "Rscript scripts/riboWaltz_single_sample.R {input.gtf} {input.fasta} {input.offset} {input.bam}"
 
@@ -291,8 +302,8 @@ rule pauses:
         "pauses/{project_name}/transcripts_pass_threshold.tsv",
         "pauses/{project_name}/pauses.tsv"
     resources:
-        time=hours_to_minutes(5),
-        mem=25000
+        time=scheduler_time_hours(5),
+        mem=scheduler_memory(25000)
     params:
         samples=expand("{sample}", sample=config["SAMPLES"]),
         project_name="{project_name}",
@@ -311,8 +322,8 @@ rule pause_to_genome:
     conda:
         "envs/r_env.yaml"
     resources:
-        time=hours_to_minutes(10),
-        mem=25000
+        time=scheduler_time_hours(10),
+        mem=scheduler_memory(25000)
     params:
         sample="{sample}",
         project_name="{project_name}"
@@ -331,8 +342,8 @@ rule obs_exp:
         read_length_min = expand("{read_length_min}", read_length_min=config['read_length_min']),
         read_length_max = expand("{read_length_max}", read_length_max=config['read_length_max'])
     resources:
-        time=hours_to_minutes(5),
-        mem=25000
+        time=scheduler_time_hours(5),
+        mem=scheduler_memory(25000)
     shell:
         "python scripts/obs_exp.py {params.read_length_min} {params.read_length_max} {input.pc_fasta} {params.project_name} {params.samples}"
 
@@ -387,8 +398,8 @@ rule make_wiggle_tracks:
     conda:
         "envs/wiggles_env.yaml"
     resources:
-        time=hours_to_minutes(5),
-        mem=1000
+        time=scheduler_time_hours(5),
+        mem=scheduler_memory(1000)
     params:
         sample="{sample}"
     shell:

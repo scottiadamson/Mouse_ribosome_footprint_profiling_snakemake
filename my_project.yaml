@@ -3,3 +3,4 @@ SAMPLES: ["sample_A1", "sample_A2", "sample_A3", "sample_B1", "sample_B2", "samp
 read_length_min: 29
 read_length_max: 32
 reads_per_codon: 0.5
+cluster_scheduler: "pbs"
