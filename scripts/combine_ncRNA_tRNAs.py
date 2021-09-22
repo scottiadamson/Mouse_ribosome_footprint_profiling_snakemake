@@ -1,10 +1,10 @@
 import gzip
 
-#tRNA_lines = ''
-#a = open('mm10-mature-tRNAs.fa', 'r')
-#for line in a:
-#    tRNA_lines += line
-#a.close()
+tRNA_lines = ''
+a = open('mm10-mature-tRNAs.fa', 'r')
+for line in a:
+    tRNA_lines += line
+a.close()
 
 b = open('references/rRNA_snoRNA_tRNA.fa', 'w')
 for rna_ref in ['1','2']:
