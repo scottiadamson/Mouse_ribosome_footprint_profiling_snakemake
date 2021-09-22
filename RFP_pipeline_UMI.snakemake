@@ -32,7 +32,9 @@ rule setup_all_refs:
         "references/gencode.vM25.pc_transcripts.fa",
         "references/gencode.vM25.transcripts.fa"
     run:
-        shell("wget https://ftp.ncbi.nlm.nih.gov/genomes/refseq/vertebrate_mammalian/Mus_musculus/reference/GCF_000001635.27_GRCm39/GCF_000001635.27_GRCm39_rna.fna.gz")
+
+        shell("wget https://ftp.ncbi.nlm.nih.gov/refseq/M_musculus/mRNA_Prot/mouse.1.rna.fna.gz")
+        shell("wget https://ftp.ncbi.nlm.nih.gov/refseq/M_musculus/mRNA_Prot/mouse.2.rna.fna.gz")
         shell("wget http://gtrnadb.ucsc.edu/genomes/eukaryota/Mmusc10/mm10-mature-tRNAs.fa")
         shell("python scripts/combine_ncRNA_tRNAs.py")
         shell("rm GCF_000001635.27_GRCm39_rna.fna.gz") 
