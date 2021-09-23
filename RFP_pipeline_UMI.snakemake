@@ -37,7 +37,7 @@ rule setup_all_refs:
         shell("wget https://ftp.ncbi.nlm.nih.gov/refseq/M_musculus/mRNA_Prot/mouse.2.rna.fna.gz")
         shell("wget http://gtrnadb.ucsc.edu/genomes/eukaryota/Mmusc10/mm10-mature-tRNAs.fa")
         shell("python scripts/combine_ncRNA_tRNAs.py")
-        shell("rm GCF_000001635.27_GRCm39_rna.fna.gz") 
+        shell("rm mouse.1.rna.fna.gz mouse.2.rna.fna.gz") 
         shell("rm mm10-mature-tRNAs.fa")
         shell("wget -O references/mm10.fa.gz http://hgdownload.cse.ucsc.edu/goldenpath/mm10/bigZips/mm10.fa.gz")
         shell("gunzip references/mm10.fa.gz")
